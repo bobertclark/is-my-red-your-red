@@ -118,27 +118,27 @@ export const Tests: React.FC = () => {
           }
           const savedDocId = docRef.id; // Retrieve the actual document ID
 
-          const updateBucket = async (hue: number) => {
-            try {
-              const bucketRef = collection(db, 'bucket-counts'); // Updated collection name
-              const bucketDocRef = doc(bucketRef, hue.toString());
-              const bucketDoc = await getDoc(bucketDocRef);
+          // const updateBucket = async (hue: number) => {
+          //   try {
+          //     const bucketRef = collection(db, 'bucket-counts'); // Updated collection name
+          //     const bucketDocRef = doc(bucketRef, hue.toString());
+          //     const bucketDoc = await getDoc(bucketDocRef);
 
-              if (bucketDoc.exists()) {
-                await updateDoc(bucketDocRef, {
-                  count: bucketDoc.data().count + 1,
-                });
-              } else {
-                await setDoc(bucketDocRef, {
-                  count: 1,
-                });
-              }
-            } catch (error) {
-              console.error('Error updating bucket:', error);
-            }
-          };
+          //     if (bucketDoc.exists()) {
+          //       await updateDoc(bucketDocRef, {
+          //         count: bucketDoc.data().count + 1,
+          //       });
+          //     } else {
+          //       await setDoc(bucketDocRef, {
+          //         count: 1,
+          //       });
+          //     }
+          //   } catch (error) {
+          //     console.error('Error updating bucket:', error);
+          //   }
+          // };
 
-          await updateBucket(boundaryT);
+          // await updateBucket(boundaryT);
 
           navigate('/results', { state: { docId: savedDocId } }); // Pass the actual document ID
         } catch (error) {
