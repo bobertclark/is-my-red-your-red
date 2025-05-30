@@ -4,6 +4,7 @@ import { db } from '../../config/firebase-config.ts';
 import { collection, serverTimestamp, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { useAuthState } from '../../hooks/useAuthState.ts';
 import { saveToSubcollection } from '../../utils/index.ts';
+import { getAuth, signOut } from 'firebase/auth';
 
 interface Response {
   t: number;
@@ -22,8 +23,7 @@ export const Tests: React.FC = () => {
 
   useEffect(() => {
     if (showTransition) {
-      const randomColor = `rgb(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)})`;
-      document.body.style.backgroundColor = randomColor;
+      document.body.style.backgroundColor = '#000'; // Set to black during static
     } else {
       const color = `hsl(${currentT * 30}, 100%, 50%)`; // Hue from 0° (red) to 30° (orange)
       document.body.style.backgroundColor = color;
@@ -48,25 +48,20 @@ export const Tests: React.FC = () => {
 
       const saveResults = async () => {
         try {
-          if (!user?.uid) {
-            console.error('User is not authenticated');
-            return;
-          }
-
+          // Allow saving even if user is not authenticated
           const data = {
             threshold_hue: boundaryT,
             timestamp: serverTimestamp(),
-            user_id: user.uid,
+            user_id: user?.uid ?? null,
           };
 
-          const docRef = await saveToSubcollection(user.uid, data);
+          const docRef = await saveToSubcollection(user?.uid ?? "anonymous", data);
           if (!docRef) {
             console.error('Failed to save document to subcollection.');
             return;
           }
-          const savedDocId = docRef.id; // Retrieve the actual document ID
-
-          navigate('/results', { state: { docId: savedDocId } }); // Pass the actual document ID
+          // Instead of passing docId, pass the results data directly
+          navigate('/results', { state: { ...data } });
         } catch (error) {
           console.error('Error saving results:', error);
         }
@@ -100,47 +95,20 @@ export const Tests: React.FC = () => {
 
       const saveResults = async () => {
         try {
-          if (!user?.uid) {
-            console.error('User is not authenticated');
-            return;
-          }
-
+          // Allow saving even if user is not authenticated
           const data = {
             threshold_hue: boundaryT,
             timestamp: serverTimestamp(),
-            user_id: user.uid,
+            user_id: user?.uid ?? null,
           };
 
-          const docRef = await saveToSubcollection(user.uid, data);
+          const docRef = await saveToSubcollection(user?.uid ?? "null", data);
           if (!docRef) {
             console.error('Failed to save document to subcollection.');
             return;
           }
-          const savedDocId = docRef.id; // Retrieve the actual document ID
-
-          // const updateBucket = async (hue: number) => {
-          //   try {
-          //     const bucketRef = collection(db, 'bucket-counts'); // Updated collection name
-          //     const bucketDocRef = doc(bucketRef, hue.toString());
-          //     const bucketDoc = await getDoc(bucketDocRef);
-
-          //     if (bucketDoc.exists()) {
-          //       await updateDoc(bucketDocRef, {
-          //         count: bucketDoc.data().count + 1,
-          //       });
-          //     } else {
-          //       await setDoc(bucketDocRef, {
-          //         count: 1,
-          //       });
-          //     }
-          //   } catch (error) {
-          //     console.error('Error updating bucket:', error);
-          //   }
-          // };
-
-          // await updateBucket(boundaryT);
-
-          navigate('/results', { state: { docId: savedDocId } }); // Pass the actual document ID
+          // Instead of passing docId, pass the results data directly
+          navigate('/results', { state: { ...data, docId: docRef.id } });
         } catch (error) {
           console.error('Error saving results:', error);
         }
@@ -172,43 +140,82 @@ export const Tests: React.FC = () => {
     }, 500); // Show random color for 0.5 seconds
   };
 
+  useEffect(() => {
+    if (!showTransition) return;
+    const canvas = document.getElementById('static-canvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    // Set canvas size to fill the window
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const imageData = ctx.createImageData(canvas.width, canvas.height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const shade = Math.random() > 0.5 ? 255 : 0;
+      imageData.data[i] = shade;     // R
+      imageData.data[i + 1] = shade; // G
+      imageData.data[i + 2] = shade; // B
+      imageData.data[i + 3] = 255;   // A
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }, [showTransition]);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center">
+    <div className="min-h-screen flex flex-col items-center justify-center px-2 sm:px-0">
       {showTransition ? (
-        <div
-          className="absolute inset-0"
-          style={{ backgroundColor: `rgb(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)})` }}
-        ></div>
+        <canvas
+          id="static-canvas"
+          style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 50 }}
+        ></canvas>
       ) : (
         <>
-          <div className="absolute top-4 right-4">
+          <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 z-10">
+            {!user?.uid ? (
+              <button
+                onClick={() => navigate('/auth')}
+                className="btn btn-primary text-base sm:text-lg px-4 py-2"
+              >
+                Sign In / Register
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  const auth = getAuth();
+                  await signOut(auth);
+                  navigate('/auth');
+                }}
+                className="btn btn-danger text-base sm:text-lg px-4 py-2"
+              >
+                Sign Out
+              </button>
+            )}
             <button
-              onClick={() => navigate('/auth')}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+              onClick={() => navigate('/user-results')}
+              className="btn btn-success text-base sm:text-lg px-4 py-2"
             >
-              Sign In / Register
+              My Results
             </button>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center space-y-4">
-            <h2 className="text-xl font-bold text-gray-800">Is this color Red or Orange?</h2>
-            <div className="flex space-x-4">
-              <button
-                onClick={() => handleSelection('red')}
-                className="px-6 py-3 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
-              >
-                Red
-              </button>
-              <button
-                onClick={() => handleSelection('orange')}
-                className="px-6 py-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition"
-              >
-                Orange
-              </button>
-            </div>
-            <p className="text-gray-600">Selection {trial + 1} of 10</p>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 text-center mt-20 sm:mt-0 mb-4">
+            Is this color Red or Orange?
+          </h2>
+          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full max-w-xs sm:max-w-none justify-center items-center mb-4">
+            <button
+              onClick={() => handleSelection('red')}
+              className="btn btn-light btn-lg border border-gray-400 text-gray-800 w-full sm:w-auto py-3"
+            >
+              Red
+            </button>
+            <button
+              onClick={() => handleSelection('orange')}
+              className="btn btn-light btn-lg border border-gray-400 text-gray-800 w-full sm:w-auto py-3"
+            >
+              Orange
+            </button>
           </div>
-          <div className="absolute bottom-4 right-4">
-            <p className="text-gray-600">Hue: {(currentT * 30).toFixed(1)}°</p>
+          <p className="text-gray-600 text-base sm:text-lg mb-2">Selection {trial + 1} of 10</p>
+          <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4">
+            {/* <p className="text-gray-600">Hue: {(currentT * 30).toFixed(1)}°</p> */}
           </div>
         </>
       )}
